@@ -1,3 +1,13 @@
+// Figure 1, page 3
+trait SomethingNew {
+  type Q
+  // type of a heap
+  type Z
+
+}
+
+
+/*
 import org.scalacheck.Gen._
 import org.scalacheck.Gen
 
@@ -16,3 +26,4 @@ val genString = for {
 
 
 genString.sample
+*/
