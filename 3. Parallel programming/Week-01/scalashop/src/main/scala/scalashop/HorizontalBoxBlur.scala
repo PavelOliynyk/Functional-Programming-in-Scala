@@ -14,23 +14,6 @@ object HorizontalBoxBlurRunner {
 
   def main(args: Array[String]): Unit = {
 
-    val w = 3
-    val h = 3
-    val src = new Img(w, h)
-    val dst = new Img(w, h)
-    src(0, 0) = 0;
-    src(1, 0) = 1;
-    src(2, 0) = 2
-    src(0, 1) = 3;
-    src(1, 1) = 4;
-    src(2, 1) = 5
-    src(0, 2) = 6;
-    src(1, 2) = 7;
-    src(2, 2) = 8
-
-    HorizontalBoxBlur.blur(src, dst, 0, 2, 1)
-
-    /*
     val radius = 3
     val width = 1920
     val height = 1080
@@ -47,7 +30,7 @@ object HorizontalBoxBlurRunner {
     }
     println(s"fork/join blur time: $partime ms")
     println(s"speedup: ${seqtime / partime}")
-    */
+
 
   }
 }
@@ -66,10 +49,8 @@ object HorizontalBoxBlur {
     for(y <- from to (end - 1)  )
     {
       for (x <- 0 to src.width - 1)
-      {
-        val p = boxBlurKernel(src, x, y, radius)
-        dst(x, y) = p
-      }
+        if (y > 0 && y < src.height)
+          dst.update(x, y,  boxBlurKernel(src, x, y, radius))
     }
 
   }

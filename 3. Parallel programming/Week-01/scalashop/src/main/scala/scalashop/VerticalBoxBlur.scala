@@ -50,10 +50,8 @@ object VerticalBoxBlur {
     for (x <- from to (end - 1))
     {
       for(y <- 0 to  src.height - 1)
-      {
-        val p = boxBlurKernel(src, x, y, radius)
-        dst(x, y) = p
-      }
+        if (x > 0 && x < src.width)
+          dst.update(x, y,  boxBlurKernel(src, x, y, radius))
     }
   }
 
