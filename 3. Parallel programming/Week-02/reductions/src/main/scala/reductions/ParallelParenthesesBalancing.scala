@@ -40,65 +40,47 @@ object ParallelParenthesesBalancing {
 
   /** Returns `true` iff the parentheses in the input `chars` are balanced.
    */
-  def balance(chars: Array[Char]): Boolean = {
+  def balance(chars: Array[Char]): Boolean = balanceAcc(chars.toList, 0) == 0
 
-    def harvest(food: List[Char], accumulator: List[Char], searchMode: Int): List[Char] = food match {
-      case List() => if (searchMode == 0)
-        accumulator
-      else
-        Nil
-      case c :: tail =>
-        c match {
-          case '(' => {
-            if (searchMode == 0 && accumulator.length == 1 && c == accumulator(0))
-              Nil
-            else {
-              var res = harvest(tail, List(c), searchMode + 1)
-              List.concat(res, accumulator)
-            }
-          }
-          case ')' => {
-            if (searchMode == 0 && accumulator.length == 1 && c == accumulator(0))
-              Nil
-            else {
-              val res = harvest(tail, List(c), searchMode - 1)
-              List.concat(accumulator, res)
-            }
-          }
-          case _ => {
-            harvest(tail, c :: accumulator, searchMode)
-          }
-        }
-    }
-
-    if ( chars.isEmpty)
-      true
-
-    else if (chars.length == 2)
-
-      (chars(0) == '(' && chars(1) == ')' )
-
+  def balanceAcc(chars: List[Char], numOpens: Int): Int = {
+    if (chars.isEmpty) numOpens
     else {
-
-      val resultStr = harvest(chars.toList, List(), 0)
-
-      resultStr.length > 0 && chars.length == resultStr.length
-
+      val h = chars.head
+      val n = {
+        if (h == '(') numOpens + 1
+        else if (h == ')') numOpens - 1
+        else numOpens
+      }
+      if (n >= 0) balanceAcc(chars.tail, n)
+      else n
     }
   }
+
   /** Returns `true` iff the parentheses in the input `chars` are balanced.
    */
-  def parBalance(chars: Array[Char], threshold: Int): Boolean = {
+  def parBalance(chars: Array[Char], threshold: Int): Boolean =  {
 
-    def traverse(idx: Int, until: Int, arg1: Int, arg2: Int) /*: ???*/ = {
-      ???
+    def traverse(idx: Int, until: Int, arg1: Int, arg2: Int) : (Int, Int) = {
+      if (idx < until) {
+        chars(idx) match {
+          case '(' => traverse(idx + 1, until, arg1 + 1, arg2)
+          case ')' => if (arg1 > 0) traverse(idx + 1, until, arg1 - 1, arg2)
+                      else traverse(idx + 1, until, arg1, arg2 + 1)
+          case _ => traverse(idx + 1, until, arg1, arg2)
+        }
+      }
+      else (arg1, arg2)
     }
 
-    def reduce(from: Int, until: Int) /*: ???*/ = {
-      ???
+    def reduce(from: Int, until: Int) : (Int, Int) = {
+      if ( (until - from) > threshold) {
+        val hs = (until - from) / 2
+        val ((a1, a2), (b1, b2)) = parallel(reduce(from, from + hs), reduce(from + hs, until))
+        if (a1 > b2) ((a1 - b2 + b1), a2) else (b1, (b2 - a1 + a2))
+      } else traverse(from, until, 0, 0)
     }
 
-    reduce(0, chars.length) == ???
+    reduce(0, chars.length) == 0
   }
 
   // For those who want more:
