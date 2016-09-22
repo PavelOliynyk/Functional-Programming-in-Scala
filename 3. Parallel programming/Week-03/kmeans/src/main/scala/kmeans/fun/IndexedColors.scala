@@ -32,11 +32,15 @@ class IndexedColorFilter(initialImage: Img,
   def getStatus() = s"Converged after $steps steps."
   def getResult() = indexedImage(initialImage, newMeans)
 
-  private def imageToPoints(img: Img): GenSeq[Point] =
-    for (x <- 0 until img.width; y <- 0 until img.height) yield {
-      val rgba = img(x, y)
-      new Point(red(rgba), green(rgba), blue(rgba))
+  private def imageToPoints(img: Img): GenSeq[Point] = {
+    val l = {
+      for (x <- 0 until img.width; y <- 0 until img.height) yield {
+        val rgba = img(x, y)
+        new Point(red(rgba), green(rgba), blue(rgba))
+      }
     }
+    l.par
+  }
 
   private def indexedImage(img: Img, means: GenSeq[Point]) = {
     val dst = new Img(img.width, img.height)
@@ -92,7 +96,7 @@ class IndexedColorFilter(initialImage: Img,
     var sound = 0.0
     var noise = 0.0
 
-    for (point <- points) {
+    for (point <- points.par) {
       import math.{pow, sqrt}
       val closest = findClosest(point, means)
       sound += sqrt(pow(point.x, 2) + pow(point.y, 2) + pow(point.z, 2))

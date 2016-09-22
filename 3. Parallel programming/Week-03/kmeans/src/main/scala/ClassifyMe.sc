@@ -1,3 +1,3 @@
-val a = List(1, 5, 6)
-val b = List(9, 12, 34)
-a zip b
+val a = List(1, 5, 6, 18, 20, 71)
+a.groupBy( x => x > 10)
+
