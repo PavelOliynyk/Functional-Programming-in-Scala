@@ -41,37 +41,75 @@ package object barneshut {
     def total: Int
 
     def insert(b: Body): Quad
+
   }
 
   case class Empty(centerX: Float, centerY: Float, size: Float) extends Quad {
-    def massX: Float = ???
-    def massY: Float = ???
-    def mass: Float = ???
-    def total: Int = ???
-    def insert(b: Body): Quad = ???
+    def massX: Float =  centerX
+    def massY: Float = centerY
+    def mass: Float = 0f
+    def total: Int = 0
+    def insert(b: Body): Quad = Leaf( centerX, centerY, size, Seq(b) )
   }
 
-  case class Fork(
-    nw: Quad, ne: Quad, sw: Quad, se: Quad
-  ) extends Quad {
-    val centerX: Float = ???
-    val centerY: Float = ???
-    val size: Float = ???
-    val mass: Float = ???
-    val massX: Float = ???
-    val massY: Float = ???
-    val total: Int = ???
+  case class Fork(nw: Quad, ne: Quad, sw: Quad, se: Quad) extends Quad {
 
-    def insert(b: Body): Fork = {
-      ???
+    // Create list of quads
+    val quads = List(nw, ne, sw, se)
+
+    val centerX: Float = (quads.map(_.centerX).min + quads.map(_.centerX).max) / 2f
+
+    val centerY: Float = (quads.map(_.centerY).min + quads.map(_.centerY).max) / 2f
+
+    val size: Float = nw.size + ne.size
+
+    val mass: Float =  quads.foldLeft(0f)(_ + _.mass)
+
+    val massX: Float =
+      if (mass == 0) centerX
+      else quads.foldLeft(0f) { case (a, quad) => a + quad.mass * quad.massX } / mass
+
+    val massY: Float =
+      if (mass == 0) centerY
+      else quads.foldLeft(0f) { case (a, quad) => a + quad.mass * quad.massY } / mass
+
+    val total: Int = quads.foldLeft(0)(_ + _.total)
+
+    def insert(b: Body): Fork = b match {
+      case a1 if (a1.x < centerX && a1.y < centerY) =>  Fork(nw.insert(b), ne, sw, se)
+      case a2 if (a2.x < centerX && a2.y >= centerY) => Fork(nw, ne.insert(b), sw, se)
+      case a3 if (a3.x >= centerX && a3.y < centerY) => Fork(nw, ne, sw.insert(b), se)
+      case _ => Fork(nw, ne, sw, se.insert(b))
     }
   }
 
-  case class Leaf(centerX: Float, centerY: Float, size: Float, bodies: Seq[Body])
-  extends Quad {
-    val (mass, massX, massY) = (??? : Float, ??? : Float, ??? : Float)
-    val total: Int = ???
-    def insert(b: Body): Quad = ???
+  case class Leaf(centerX: Float, centerY: Float, size: Float, bodies: Seq[Body])extends Quad {
+    
+    // Get sum of all bodies mass
+    val mass = bodies.foldLeft(0f)( _ + _.mass)
+
+    // Calculate bodie's mass centers
+    val massX: Float = bodies.foldLeft(0f)((z, b: Body) => z + b.x * b.mass) / mass
+    val massY: Float = bodies.foldLeft(0f)((z, b: Body) => z + b.y * b.mass) / mass
+
+    // Leaf is the down end of the tree
+    val total: Int = 1
+
+    def insert(b: Body): Quad = {
+      if (size <= minimumSize)
+        Leaf( centerX, centerY, size + 1, bodies :+ b )
+      else {
+        // Re-compute center
+        val (lx, hx, ly, hy) = (centerX - size / 4, centerX + size / 4, centerY - size / 4, centerY + size / 4)
+
+        val nw = Empty(lx, ly, size / 2)
+        val sw = Empty(lx, hy, size / 2)
+        val ne = Empty(hx, ly, size / 2)
+        val se = Empty(hx, hy, size / 2)
+
+        (bodies :+ b).foldLeft( Fork(nw, ne, sw, se) )( (c, b) => c.insert(b))
+      }
+    }
   }
 
   def minimumSize = 0.00001f
@@ -86,9 +124,8 @@ package object barneshut {
 
   def force(m1: Float, m2: Float, dist: Float): Float = gee * m1 * m2 / (dist * dist)
 
-  def distance(x0: Float, y0: Float, x1: Float, y1: Float): Float = {
+  def distance(x0: Float, y0: Float, x1: Float, y1: Float): Float =
     math.sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0)).toFloat
-  }
 
   class Body(val mass: Float, val x: Float, val y: Float, val xspeed: Float, val yspeed: Float) {
 
@@ -121,11 +158,20 @@ package object barneshut {
       def traverse(quad: Quad): Unit = (quad: Quad) match {
         case Empty(_, _, _) =>
           // no force
-        case Leaf(_, _, _, bodies) =>
+        case Leaf(_, _, _, bodies) => bodies.map( body => addForce(body.mass, body.x, body.y) )
           // add force contribution of each body by calling addForce
+
         case Fork(nw, ne, sw, se) =>
           // see if node is far enough from the body,
           // or recursion is needed
+          if (quad.size / distance(quad.massX, quad.massY, x, y) < theta)
+            addForce(quad.mass, quad.massX, quad.massY)
+          else {
+            traverse(nw)
+            traverse(ne)
+            traverse(sw)
+            traverse(se)
+          }
       }
 
       traverse(quad)
@@ -137,25 +183,31 @@ package object barneshut {
 
       new Body(mass, nx, ny, nxspeed, nyspeed)
     }
-
   }
 
   val SECTOR_PRECISION = 8
 
   class SectorMatrix(val boundaries: Boundaries, val sectorPrecision: Int) {
+
     val sectorSize = boundaries.size / sectorPrecision
+
     val matrix = new Array[ConcBuffer[Body]](sectorPrecision * sectorPrecision)
+
     for (i <- 0 until matrix.length) matrix(i) = new ConcBuffer
 
     def +=(b: Body): SectorMatrix = {
-      ???
+      def calcPosition(a: Float, b: Float):Int = ((a - b) / sectorSize).toInt max 0 min sectorPrecision - 1
+      this( calcPosition(b.x, boundaries.minX), calcPosition( b.y,boundaries.minY) ) += b
       this
     }
 
     def apply(x: Int, y: Int) = matrix(y * sectorPrecision + x)
 
     def combine(that: SectorMatrix): SectorMatrix = {
-      ???
+      for (i <- 0 until matrix.length)
+        matrix.update(i, matrix(i) combine that.matrix(i)  )
+
+      this
     }
 
     def toQuad(parallelism: Int): Quad = {
@@ -172,16 +224,17 @@ package object barneshut {
           val nspan = span / 2
           val nAchievedParallelism = achievedParallelism * 4
           val (nw, ne, sw, se) =
-            if (parallelism > 1 && achievedParallelism < parallelism * BALANCING_FACTOR) parallel(
-              quad(x, y, nspan, nAchievedParallelism),
-              quad(x + nspan, y, nspan, nAchievedParallelism),
-              quad(x, y + nspan, nspan, nAchievedParallelism),
-              quad(x + nspan, y + nspan, nspan, nAchievedParallelism)
+            if (parallelism > 1 && achievedParallelism < parallelism * BALANCING_FACTOR)
+              parallel(
+                quad(x, y, nspan, nAchievedParallelism),
+                quad(x + nspan, y, nspan, nAchievedParallelism),
+                quad(x, y + nspan, nspan, nAchievedParallelism),
+                quad(x + nspan, y + nspan, nspan, nAchievedParallelism)
             ) else (
-              quad(x, y, nspan, nAchievedParallelism),
-              quad(x + nspan, y, nspan, nAchievedParallelism),
-              quad(x, y + nspan, nspan, nAchievedParallelism),
-              quad(x + nspan, y + nspan, nspan, nAchievedParallelism)
+                quad(x, y, nspan, nAchievedParallelism),
+                quad(x + nspan, y, nspan, nAchievedParallelism),
+                quad(x, y + nspan, nspan, nAchievedParallelism),
+                quad(x + nspan, y + nspan, nspan, nAchievedParallelism)
             )
           Fork(nw, ne, sw, se)
         }
